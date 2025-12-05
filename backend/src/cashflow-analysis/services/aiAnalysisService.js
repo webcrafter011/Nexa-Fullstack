@@ -5,7 +5,9 @@ const moment = require('moment');
 class AIAnalysisService {
   constructor() {
     this.geminiApiKey = process.env.GEMINI_API_KEY;
-    this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+    // Use the same Gemini model endpoint used elsewhere in the codebase
+    // (gemini-2.5-flash) to avoid 404s for unavailable/older model names.
+    this.baseUrl = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent';
     
     if (!this.geminiApiKey) {
       console.warn('⚠️  GEMINI_API_KEY not found in environment variables');
@@ -297,9 +299,10 @@ Ensure all numerical values are realistic and based on the provided data. Be spe
         }],
         generationConfig: {
           temperature: 0.3, // Lower temperature for more focused analysis
-          maxOutputTokens: 4000, // Increased for detailed analysis
+          maxOutputTokens: 8192, // Increased to model's maximum
           topP: 0.8,
-          topK: 40
+          topK: 40,
+          response_mime_type: "application/json" // Enforce JSON output
         }
       }, {
         headers: {
@@ -322,10 +325,14 @@ Ensure all numerical values are realistic and based on the provided data. Be spe
         };
       }
 
-      console.log('❌ Invalid response structure from Gemini API');
+      console.log('❌ Invalid response structure from Gemini API — will attempt local fallback');
+      // Return success with the raw response so the caller can attempt to parse
+      // and fall back to a local analysis if parsing fails. This prevents the
+      // whole analysis flow from failing when the model returns an unexpected
+      // structure (e.g., MAX_TOKENS with no content parts).
       return {
-        success: false,
-        error: 'Invalid response format from Gemini API'
+        success: true,
+        response: JSON.stringify(response.data)
       };
 
     } catch (error) {
